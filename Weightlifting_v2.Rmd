@@ -1,0 +1,144 @@
+---
+title: "Weightlifting Classification"
+author: "Daryl Van Dyke"
+date: "January 5, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(readr)
+train <- read_csv("C:/Users/dkvandyke/Desktop/pml-training.csv")
+test <- read_csv("C:\\Users\\dkvandyke\\Desktop\\pml-testing.csv")
+dTrain <- tbl_df(train)
+dTest <- tbl_df(test)
+```
+
+## Problem Statement
+
+Apparently, some techies like to measure themselves doing things.  This allows them to quantify what they were doing, and when they did it.  These folks also want to know if they are good enough or not.  The purpose of this analysis is to determine the efficacy of  trying to classify their barbell lift form as Correct or Incorrect, based on observed data.
+
+
+## General Data Patterns and Data Preparation
+
+The dataset consists of 158 different parameters, describing 6 subjects and the 5 different classes of accuracy of the weightlifting form.  Of these, only 93 paramters contained useful data.  The data were filtered to remove those columns.
+
+```{r}
+
+
+makeGoodDF <- function(inputDF){
+        # removes all columns with NA elements in them
+        cNames <- names(inputDF)
+
+        t1 <- apply( inputDF, 2, is.na)
+        apply(t1, 2, sum) -> inputDF_NA
+        
+        cbind(cNames, inputDF_NA > 0) -> tblNA
+        
+        as.vector(which(inputDF_NA == 0)) -> indxGood
+        inputDF[,indxGood] ->  outDF
+        outDF
+}
+
+dTrain <- makeGoodDF(dTrain)
+dTest  <- makeGoodDF(dTest)
+
+
+```
+## Model Selection
+
+Machine Learning application CARET was employed to fit models for the training dataset.
+
+```{r}
+#install.packages("caret")
+#install.packages("randomForest")
+#install.packages("rattle")
+#install.packages("e1071")
+
+library(randomForest)
+library(mlbench)
+library(caret)
+
+library(caret)
+library(rpart)
+
+setMKLthreads(10)
+#m1 <- train(classe ~ . , data = dTrain_t, method = "rpart", na.action= na.omit)
+
+#m2rF <- train(classe ~ . , data = dTrain_t, method = "rf", na.action= na.omit)
+
+#summary(m2rF)
+library(rattle)
+```
+
+The distribution of movement type ('classe' in the data table) is as such:
+```{r}
+makeBarPlot <- function(dF, factor){
+    g <- ggplot(dF, aes(factor))
+    g + geom_bar()      
+}
+#dTrain$fClass <- as.factor(dTrain$classe)
+makeBarPlot(dTrain, as.factor(dTrain$classe) )
+```
+The distribution of classes in the Training set looks good.
+
+So, with our fit classification model for the Training dataset, let us evaluate the Test.
+
+```{r, cache = TRUE}
+inTrain <- createDataPartition(y = dTrain$classe, 
+                               p = 0.7, list=FALSE)
+
+dTrain_t_training <- dTrain[inTrain , ]
+dTrain_t_testing  <- dTrain[-inTrain, ]
+
+setMKLthreads(12)
+
+m1_t <- train(classe ~ . , data = dTrain, method = "rpart", na.action= na.omit)
+
+m2rF_t <- train(classe ~ . , data = dTrain, method = "rf", na.action= na.omit)
+
+dTrain_t_testing$pred_m1 <- predict( m1_t, dTrain_t_testing )
+dTrain_t_testing$pred_m2 <- predict( m2rF_t, dTrain_t_testing )
+
+dim(dTrain_t_testing)[1] -> nFull
+
+dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m1,][1]) -> nCorr_m1
+
+dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m2,])[1] -> nCorr_m2
+
+```
+
+Percent accuracy for training dataset, with the m1 RPart model:
+```{r}
+nCorr_m1/nFull
+```
+
+Percent accuracy for training dataset, with the m2 random Forest model:
+```{r}
+nCorr_m2/nFull
+```
+
+```{r}
+#dTest$fClass <- as.factor(dTest$cla)
+pred   <- predict(m1_t, dTest)
+pred
+predRF <- predict(m2rF_t, dTest)
+predRF
+
+```
+
+With these two models fit - we have developed two different prediction sets.  One for the random forest, ```predRF```, and one for the rpart version, ```pred```.
+
+
+
+
+
+
+
+
+
