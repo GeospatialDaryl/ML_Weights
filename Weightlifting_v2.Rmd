@@ -53,6 +53,27 @@ dTest  <- makeGoodDF(dTest)
 ## Model Selection
 
 Machine Learning application CARET was employed to fit models for the training dataset.
+Two models were evaluated, a random forest approach, and a RPART classification.
+
+The random forest ended up having superior reliability.
+
+## Model Building Process
+
+The data were tidied by removing all attributes with NA values, which reduced the dimensionality of the product by 1/3, to roughly 55 meaningful attributes.  This resulted in dropping the sample number, date & time, as well as other metadata of the experiment.
+
+The remaining attributes were used for the modeling fitting process.  These attributes all involved the actual sensor observations.
+
+With these data, the following process was used:
+
+1)  Partion the training data into a second subset, ```training_tr```, and ```training_tst```, based on a 70%/30% split.
+
+2)  Fit both ```training``` datasets (```training```, and ```training_tr```) using the same model selection process.
+
+3)  Use ```predict``` with the ```training_tst``` data to develop predictions based on the fit models.  These data have the correct ```classe```, as well as our predictions, which allow us to assess the reliability of the model.
+
+4)  Select the better model.
+
+5)  Apply that model to the entire training dataset, and predict based on the test.
 
 ```{r}
 #install.packages("caret")
@@ -87,9 +108,18 @@ makeBarPlot(dTrain, as.factor(dTrain$classe) )
 ```
 The distribution of classes in the Training set looks good.
 
-So, with our fit classification model for the Training dataset, let us evaluate the Test.
+##  Cross Validation
+
+
+So, with our fit classification model for the Training dataset, let us evaluate the Test.  We first split our 'Training' dataset into a 70/30 split, so we can evaluate the effectiveness of our model.
+
+
+
 
 ```{r, cache = TRUE}
+dTrain$classe <- as.factor(dTrain$classe)
+dTrain <- dTrain[,-c(1:5)]
+
 inTrain <- createDataPartition(y = dTrain$classe, 
                                p = 0.7, list=FALSE)
 
@@ -98,34 +128,41 @@ dTrain_t_testing  <- dTrain[-inTrain, ]
 
 setMKLthreads(12)
 
-m1_t <- train(classe ~ . , data = dTrain, method = "rpart", na.action= na.omit)
 
-m2rF_t <- train(classe ~ . , data = dTrain, method = "rf", na.action= na.omit)
+m1   <- train(classe ~ . , data = dTrain, method = "rpart", na.action= na.omit)
+m2rF  <- train(classe ~ . , data = dTrain, method = "rf", na.action= na.omit)
+#  train on the training_training partition
+m1_t <- train(as.factor(classe) ~ . , data = dTrain_t_training, method = "rpart", na.action= na.omit)
+m2rF_t <- train(classe ~ . , data = dTrain_t_training, method = "rf", na.action= na.omit)
 
 dTrain_t_testing$pred_m1 <- predict( m1_t, dTrain_t_testing )
 dTrain_t_testing$pred_m2 <- predict( m2rF_t, dTrain_t_testing )
 
 dim(dTrain_t_testing)[1] -> nFull
 
-dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m1,][1]) -> nCorr_m1
+dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m1,])[1] -> nCorr_m1
 
-dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m2,])[1] -> nCorr_m2
+#dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m2,])[1] -> nCorr_m2
 
 ```
 
 Percent accuracy for training dataset, with the m1 RPart model:
 ```{r}
-nCorr_m1/nFull
+dim(dTrain_t_testing[dTrain_t_testing$classe == dTrain_t_testing$pred_m2,])[1] -> nCorr_m2
+(nCorr_m1/nFull)[1]
 ```
 
 Percent accuracy for training dataset, with the m2 random Forest model:
 ```{r}
 nCorr_m2/nFull
 ```
+##  Model Accuracy
+
+The Rpart model was on 49% accurate, compared to our random forest implementation.  It scored a whopping 98% accuracy rating.
 
 ```{r}
 #dTest$fClass <- as.factor(dTest$cla)
-pred   <- predict(m1_t, dTest)
+pred   <- predict(m1, dTest)
 pred
 predRF <- predict(m2rF_t, dTest)
 predRF
@@ -134,11 +171,4 @@ predRF
 
 With these two models fit - we have developed two different prediction sets.  One for the random forest, ```predRF```, and one for the rpart version, ```pred```.
 
-
-
-
-
-
-
-
-
+These predictions are used for the quiz.
